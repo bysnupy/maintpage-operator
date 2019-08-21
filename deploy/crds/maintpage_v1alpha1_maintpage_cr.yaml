@@ -1,0 +1,7 @@
+apiVersion: maintpage.example.com/v1alpha1
+kind: MaintPage
+metadata:
+  name: example-maintpage
+spec:
+  targetservice: httpd
+  targetdeployment: httpd

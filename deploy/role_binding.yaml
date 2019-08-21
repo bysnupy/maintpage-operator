@@ -1,0 +1,11 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: maintpage-operator
+subjects:
+- kind: ServiceAccount
+  name: maintpage-operator
+roleRef:
+  kind: Role
+  name: maintpage-operator
+  apiGroup: rbac.authorization.k8s.io
