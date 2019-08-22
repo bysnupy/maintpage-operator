@@ -16,7 +16,7 @@ spec:
       containers:
         - name: maintpage-operator
           # Replace this with the built image name
-          image: docker-registry.default.svc:5000/openshift/maintpage-operator:v0.0.1
+          image: quay.io/daein/maintpage-operator:v0.0.1
           command:
           - maintpage-operator
           imagePullPolicy: Always

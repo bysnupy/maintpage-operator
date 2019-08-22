@@ -138,14 +138,26 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 	deployfound := &appsv1.Deployment{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.TargetDeployment, Namespace: maintpage.Namespace}, deployfound)
 	if err != nil && errors.IsNotFound(err) {
-		// Define a new deployment
 		reqLogger.Info("Not Found Target Deployment", "Deployment.Namespace", maintpage.Namespace, "Deployment.Name", maintpage.Spec.TargetDeployment)
+		return reconcile.Result{Requeue: true}, nil
+	} else if err != nil {
+		reqLogger.Error(err, "Failed to get Deployment")
+		return reconcile.Result{}, err
+	} 
+        reqLogger.Info("Updated Deployment !")
 
+        servicefound := &corev1.Service{}
+        err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.TargetService, Namespace: maintpage.Namespace}, servicefound)
+        if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Not Found Target Service", "Service.Namespace", maintpage.Namespace, "Service.Name", maintpage.Spec.TargetService)
 		return reconcile.Result{Requeue: true}, nil
 	} else if err != nil {
 		reqLogger.Error(err, "Failed to get Deployment")
 		return reconcile.Result{}, err
 	}
+        reqLogger.Info("Change selector of Service !")
+        
+
 	return reconcile.Result{}, nil
 }
 
