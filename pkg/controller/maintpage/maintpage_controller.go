@@ -1,10 +1,11 @@
 package maintpage
 
 import (
+        "time"
 	"context"
 
 	maintpagev1alpha1 "github.com/bysnupy/maintpage-operator/pkg/apis/maintpage/v1alpha1"
-
+    
         appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -135,16 +136,6 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 	// Pod already exists - don't requeue
 	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", podfound.Namespace, "Pod.Name", podfound.Name)
 
-	deployfound := &appsv1.Deployment{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.TargetDeployment, Namespace: maintpage.Namespace}, deployfound)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Not Found Target Deployment", "Deployment.Namespace", maintpage.Namespace, "Deployment.Name", maintpage.Spec.TargetDeployment)
-		return reconcile.Result{Requeue: true}, nil
-	} else if err != nil {
-		reqLogger.Error(err, "Failed to get Deployment")
-		return reconcile.Result{}, err
-	} 
-        reqLogger.Info("Updated Deployment !")
 
         servicefound := &corev1.Service{}
         err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.TargetService, Namespace: maintpage.Namespace}, servicefound)
@@ -155,10 +146,36 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 		reqLogger.Error(err, "Failed to get Deployment")
 		return reconcile.Result{}, err
 	}
-        reqLogger.Info("Change selector of Service !")
-        
 
-	return reconcile.Result{}, nil
+	deployfound := &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.TargetDeployment, Namespace: maintpage.Namespace}, deployfound)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Not Found Target Deployment", "Deployment.Namespace", maintpage.Namespace, "Deployment.Name", maintpage.Spec.TargetDeployment)
+		return reconcile.Result{Requeue: true}, nil
+	} else if err != nil {
+		reqLogger.Error(err, "Failed to get Deployment")
+		return reconcile.Result{}, err
+	} 
+
+        currentimage := deployfound.Spec.Template.Spec.Containers[0].Image
+        reqLogger.Info("Current Image: " + currentimage)
+        reqLogger.Info("Target Image: " + maintpage.Spec.TargetImage)
+        reqLogger.Info("Service Name: " + servicefound.Name)
+        reqLogger.Info("Service Selector before changes: " + servicefound.Spec.Selector["app"])
+        if currentimage != maintpage.Spec.TargetImage {
+                servicefound.Spec.Selector["app"] = "maintpage"
+                err := r.client.Update(context.TODO(), servicefound) 
+                if err != nil {
+                        reqLogger.Error(err, "Failed to Update Service", servicefound.Name)
+                        return reconcile.Result{}, err
+                }
+                reqLogger.Info("Changed Service Selector")
+                reqLogger.Info("Service Selector after changes: " + servicefound.Spec.Selector["app"])
+        } else {
+                reqLogger.Info("Not changed Image")
+        }
+
+	return reconcile.Result{RequeueAfter: time.Second*5}, nil
 }
 
 // newPodForCR returns a busybox pod with the same name/namespace as the cr
