@@ -1,7 +1,7 @@
 apiVersion: maintpage.example.com/v1alpha1
 kind: MaintPage
 metadata:
-  name: maintpage
+  name: example
 spec:
   appname: httpd
   appimage: registry.redhat.io/rhscl/httpd-24-rhel7:latest

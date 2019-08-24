@@ -151,6 +151,7 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 			reqLogger.Error(err, "Failed to create new Deployment", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 			return reconcile.Result{}, err
 		}
+
 		// Deployment created successfully - return and requeue
 		return reconcile.Result{Requeue: true}, nil
 	} else if err != nil {
@@ -188,8 +189,7 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
                 reqLogger.Info("Changed service selector: " + svcfound.Spec.Selector["app"])
 
                 // Update Status
-                maintpage.Status.SwitchedMaintPage = true
-                statusErr := r.client.Status().Update(context.TODO(), maintpage)
+                statusErr := r.client.Status().Update(context.TODO(), updateMaintStatus(maintpage, "Published"))
                 if statusErr != nil {
                         reqLogger.Error(statusErr, "Failed to Update MaintPage status")
                         return reconcile.Result{}, statusErr
@@ -204,16 +204,26 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
                         }
                         reqLogger.Info("Changed service selector: " + svcfound.Spec.Selector["app"])            
            
-                        // Update Status
-                        maintpage.Status.SwitchedMaintPage = false
-                        statusErr := r.client.Status().Update(context.TODO(), maintpage)
-                        if statusErr != nil {
-                                reqLogger.Error(statusErr, "Failed to Update MaintPage status")
-                                return reconcile.Result{}, statusErr
-                        }
+                }
+                // Update Status
+                statusErr := r.client.Status().Update(context.TODO(), updateMaintStatus(maintpage, "Not Published"))
+                if statusErr != nil {
+                       reqLogger.Error(statusErr, "Failed to Update MaintPage status")
+                       return reconcile.Result{}, statusErr
                 }
         }
 
+        // Revert if current image does not match with defined one
+        if depfound.Spec.Template.Spec.Containers[0].Image != maintpage.Spec.AppImage {
+                depfound.Spec.Template.Spec.Containers[0].Image = maintpage.Spec.AppImage
+                err := r.client.Update(context.TODO(), depfound)
+                if err != nil {
+                        reqLogger.Error(err, "Failed to Update Deployment App Image", depfound.Name)
+                        return reconcile.Result{}, err
+                }
+                reqLogger.Info("Reverted Deployment Image as App Image")
+        }     
+ 
 	return reconcile.Result{}, nil
 }
 
@@ -294,4 +304,9 @@ func (r *ReconcileMaintPage) serviceForApp(m *maintpagev1alpha1.MaintPage) *core
 	// Set MaintPage instance as the owner and controller
 	controllerutil.SetControllerReference(m, svc, r.scheme)
 	return svc
+}
+
+func updateMaintStatus(m *maintpagev1alpha1.MaintPage, status string) *maintpagev1alpha1.MaintPage {
+        m.Status.MaintPublishStatus = status
+        return m
 }
