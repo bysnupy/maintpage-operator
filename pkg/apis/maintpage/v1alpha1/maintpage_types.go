@@ -13,9 +13,9 @@ type MaintPageSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
-        TargetService    string `json:"targetservice"`
-        TargetDeployment string `json:"targetdeployment"`
-        TargetImage      string `json:"targetimage"`
+        AppName  string `json:"appname"`
+        AppImage string `json:"appimage"`
+        MaintPage bool  `json:"maintpage"`
 }
 
 // MaintPageStatus defines the observed state of MaintPage
@@ -24,7 +24,7 @@ type MaintPageStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
-        Switched bool `json:"switched"`
+        SwitchedMaintPage bool `json:"switchedmaintpage"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -3,6 +3,6 @@ kind: MaintPage
 metadata:
   name: maintpage
 spec:
-  targetservice: httpd
-  targetdeployment: httpd
-  targetimage: registry.redhat.io/rhscl/httpd-24-rhel7:latest
+  appname: httpd
+  appimage: registry.redhat.io/rhscl/httpd-24-rhel7:latest
+  maintpage: false

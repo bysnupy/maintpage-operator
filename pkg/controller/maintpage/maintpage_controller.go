@@ -1,7 +1,6 @@
 package maintpage
 
 import (
-        "time"
 	"context"
 
 	maintpagev1alpha1 "github.com/bysnupy/maintpage-operator/pkg/apis/maintpage/v1alpha1"
@@ -12,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -54,18 +54,20 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// Watch for changes to primary resource MaintPage
-	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
 	// TODO(user): Modify this to be the types you create that are owned by the primary resource
 	// Watch for changes to secondary resource Pods and requeue the owner MaintPage
 	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &maintpagev1alpha1.MaintPage{},
 	})
+	if err != nil {
+		return err
+	}
+
+	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
+                IsController: true,
+                OwnerType:    &maintpagev1alpha1.MaintPage{},
+        })
 	if err != nil {
 		return err
 	}
@@ -136,49 +138,86 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 	// Pod already exists - don't requeue
 	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", podfound.Namespace, "Pod.Name", podfound.Name)
 
-
-        servicefound := &corev1.Service{}
-        err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.TargetService, Namespace: maintpage.Namespace}, servicefound)
-        if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Not Found Target Service", "Service.Namespace", maintpage.Namespace, "Service.Name", maintpage.Spec.TargetService)
+	// Check if the deployment already exists, if not create a new one
+	depfound := &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.AppName, Namespace: maintpage.Namespace}, depfound)
+	if err != nil && errors.IsNotFound(err) {
+		// Define a new deployment
+	        reqLogger.Info("App Name: " + maintpage.Spec.AppName + ", App Image: " + maintpage.Spec.AppImage)
+		dep := r.deploymentForApp(maintpage)
+		reqLogger.Info("Creating a App Deployment", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+		err = r.client.Create(context.TODO(), dep)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new Deployment", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+			return reconcile.Result{}, err
+		}
+		// Deployment created successfully - return and requeue
 		return reconcile.Result{Requeue: true}, nil
 	} else if err != nil {
 		reqLogger.Error(err, "Failed to get Deployment")
 		return reconcile.Result{}, err
 	}
 
-	deployfound := &appsv1.Deployment{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.TargetDeployment, Namespace: maintpage.Namespace}, deployfound)
+	// Check if the service already exists, if not create a new one
+	svcfound := &corev1.Service{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.AppName, Namespace: maintpage.Namespace}, svcfound)
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Not Found Target Deployment", "Deployment.Namespace", maintpage.Namespace, "Deployment.Name", maintpage.Spec.TargetDeployment)
+		// Define a new service
+		svc := r.serviceForApp(maintpage)
+		reqLogger.Info("Creating a App Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+		err = r.client.Create(context.TODO(), svc)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+			return reconcile.Result{}, err
+		}
+		// Deployment created successfully - return and requeue
 		return reconcile.Result{Requeue: true}, nil
 	} else if err != nil {
-		reqLogger.Error(err, "Failed to get Deployment")
+		reqLogger.Error(err, "Failed to get Service")
 		return reconcile.Result{}, err
-	} 
+	}
 
-        currentimage := deployfound.Spec.Template.Spec.Containers[0].Image
-        reqLogger.Info("Current Image: " + currentimage)
-        reqLogger.Info("Target Image: " + maintpage.Spec.TargetImage)
-        reqLogger.Info("Service Name: " + servicefound.Name)
-        reqLogger.Info("Service Selector before changes: " + servicefound.Spec.Selector["app"])
-        if currentimage != maintpage.Spec.TargetImage {
-                servicefound.Spec.Selector["app"] = "maintpage"
-                err := r.client.Update(context.TODO(), servicefound) 
+        // Check if MaintPage flag is enabled
+        if maintpage.Spec.MaintPage {
+                svcfound.Spec.Selector["app"] = "maintpage"
+                err := r.client.Update(context.TODO(), svcfound) 
                 if err != nil {
-                        reqLogger.Error(err, "Failed to Update Service", servicefound.Name)
+                        reqLogger.Error(err, "Failed to Update Service", svcfound.Name)
                         return reconcile.Result{}, err
                 }
-                reqLogger.Info("Changed Service Selector")
-                reqLogger.Info("Service Selector after changes: " + servicefound.Spec.Selector["app"])
+                reqLogger.Info("Changed service selector: " + svcfound.Spec.Selector["app"])
+
+                // Update Status
+                maintpage.Status.SwitchedMaintPage = true
+                statusErr := r.client.Status().Update(context.TODO(), maintpage)
+                if statusErr != nil {
+                        reqLogger.Error(statusErr, "Failed to Update MaintPage status")
+                        return reconcile.Result{}, statusErr
+                }
         } else {
-                reqLogger.Info("Not changed Image")
+                if svcfound.Spec.Selector["app"] != maintpage.Spec.AppName {
+                        svcfound.Spec.Selector["app"] = maintpage.Spec.AppName
+                        err := r.client.Update(context.TODO(), svcfound)
+                        if err != nil {
+                                reqLogger.Error(err, "Failed to Update Service to App Name", svcfound.Name)
+                                return reconcile.Result{}, err
+                        }
+                        reqLogger.Info("Changed service selector: " + svcfound.Spec.Selector["app"])            
+           
+                        // Update Status
+                        maintpage.Status.SwitchedMaintPage = false
+                        statusErr := r.client.Status().Update(context.TODO(), maintpage)
+                        if statusErr != nil {
+                                reqLogger.Error(statusErr, "Failed to Update MaintPage status")
+                                return reconcile.Result{}, statusErr
+                        }
+                }
         }
 
-	return reconcile.Result{RequeueAfter: time.Second*5}, nil
+	return reconcile.Result{}, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
+// newPodForMaintPage returns a maintpage pod with the same name/namespace as the cr
 func newPodForCR(cr *maintpagev1alpha1.MaintPage) *corev1.Pod {
 	labels := map[string]string{
 		"app": cr.Name,
@@ -198,4 +237,61 @@ func newPodForCR(cr *maintpagev1alpha1.MaintPage) *corev1.Pod {
 			},
 		},
 	}
+}
+
+// deploymentForApp returns a App Deployment object
+func (r *ReconcileMaintPage) deploymentForApp(m *maintpagev1alpha1.MaintPage) *appsv1.Deployment {
+	appname  := m.Spec.AppName
+	appimage := m.Spec.AppImage
+        replicas := int32(1)
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      appname,
+			Namespace: m.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+                        Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": appname},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": appname},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Image:   appimage,
+						Name:    appname,
+					}},
+				},
+			},
+		},
+	}
+	// Set MaintPage instance as the owner and controller
+	controllerutil.SetControllerReference(m, dep, r.scheme)
+	return dep
+}
+
+func (r *ReconcileMaintPage) serviceForApp(m *maintpagev1alpha1.MaintPage) *corev1.Service {
+	appname  := m.Spec.AppName
+
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      appname,
+			Namespace: m.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+		        Ports: []corev1.ServicePort{{
+                                Name:       "8080-tcp",
+                                Protocol:   "TCP",
+                                Port:       8080,
+                                TargetPort: intstr.FromInt(8080),
+                        }},
+			Selector: map[string]string{"app": appname},
+	        },
+	}
+	// Set MaintPage instance as the owner and controller
+	controllerutil.SetControllerReference(m, svc, r.scheme)
+	return svc
 }
