@@ -180,7 +180,7 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 
         // Check if MaintPage flag is enabled
         if maintpage.Spec.MaintPage {
-                svcfound.Spec.Selector["app"] = "maintpage"
+                svcfound.Spec.Selector["app"] = maintpage.Name
                 err := r.client.Update(context.TODO(), svcfound) 
                 if err != nil {
                         reqLogger.Error(err, "Failed to Update Service", svcfound.Name)
@@ -228,14 +228,14 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 }
 
 // newPodForMaintPage returns a maintpage pod with the same name/namespace as the cr
-func newPodForCR(cr *maintpagev1alpha1.MaintPage) *corev1.Pod {
+func newPodForCR(m *maintpagev1alpha1.MaintPage) *corev1.Pod {
 	labels := map[string]string{
-		"app": cr.Name,
+		"app": m.Name,
 	}
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-maintpage-pod",
-			Namespace: cr.Namespace,
+			Name:      m.Name + "-maintpage-pod",
+			Namespace: m.Namespace,
 			Labels:    labels,
 		},
 		Spec: corev1.PodSpec{
