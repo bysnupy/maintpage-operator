@@ -121,7 +121,7 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 
 	// Check if this Pod already exists
 	podfound := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, podfound)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Name + "-maintpage-pod", Namespace: pod.Namespace}, podfound)
 	if err != nil && errors.IsNotFound(err) {
 		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
 		err = r.client.Create(context.TODO(), pod)
