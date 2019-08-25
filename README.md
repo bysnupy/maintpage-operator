@@ -6,7 +6,7 @@ Maintpage Operator automates the task to show a maintenance page.
 
 Maintpage Operator help you to switch mode from production to maintenance mode.
 
-![maintpage-operator work process](https://github.com/bysnupy/maintpage-operator/blob/master/maintpage-operator-process.png)
+![maintpage-operator work process](https://github.com/bysnupy/maintpage-operator/blob/master/maintpage-operator-process-diagram.png)
 
 ### Example MaintPage CR
 ~~~
