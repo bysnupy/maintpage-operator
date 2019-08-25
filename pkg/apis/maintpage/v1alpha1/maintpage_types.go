@@ -13,9 +13,8 @@ type MaintPageSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
-        AppName  string `json:"appname"`
-        AppImage string `json:"appimage"`
-        MaintPage bool  `json:"maintpage"`
+        MaintPageConfig MaintPageConfig `json:"maintpageconfig"`
+        AppConfig       AppConfig       `json:"appconfig"`
 }
 
 // MaintPageStatus defines the observed state of MaintPage
@@ -47,6 +46,18 @@ type MaintPageList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []MaintPage `json:"items"`
+}
+
+// MaintPageConfig for MaintPageSpec
+type MaintPageConfig struct {
+        MaintPageToggle bool   `json:"maintpagetoggle"`
+        MaintPageImage  string `json:"maintpageimage"`
+}
+
+// AppConfig for MaintPageSpec
+type AppConfig struct {
+        AppName  string `json:"appname"`
+        AppImage string `json:"appimage"`
 }
 
 func init() {

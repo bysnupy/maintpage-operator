@@ -112,7 +112,7 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 	}
 
 	// Define a new Pod object
-	pod := newPodForCR(maintpage)
+	pod := newPodForMaintPage(maintpage)
 
 	// Set MaintPage instance as the owner and controller
 	if err := controllerutil.SetControllerReference(maintpage, pod, r.scheme); err != nil {
@@ -140,10 +140,11 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 
 	// Check if the deployment already exists, if not create a new one
 	depfound := &appsv1.Deployment{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.AppName, Namespace: maintpage.Namespace}, depfound)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.AppConfig.AppName, Namespace: maintpage.Namespace}, depfound)
 	if err != nil && errors.IsNotFound(err) {
 		// Define a new deployment
-	        reqLogger.Info("App Name: " + maintpage.Spec.AppName + ", App Image: " + maintpage.Spec.AppImage)
+	        reqLogger.Info("App Name: " + maintpage.Spec.AppConfig.AppName + ", App Image: " + maintpage.Spec.AppConfig.AppImage)
+
 		dep := r.deploymentForApp(maintpage)
 		reqLogger.Info("Creating a App Deployment", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 		err = r.client.Create(context.TODO(), dep)
@@ -161,10 +162,11 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 
 	// Check if the service already exists, if not create a new one
 	svcfound := &corev1.Service{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.AppName, Namespace: maintpage.Namespace}, svcfound)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: maintpage.Spec.AppConfig.AppName, Namespace: maintpage.Namespace}, svcfound)
 	if err != nil && errors.IsNotFound(err) {
 		// Define a new service
 		svc := r.serviceForApp(maintpage)
+
 		reqLogger.Info("Creating a App Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
 		err = r.client.Create(context.TODO(), svc)
 		if err != nil {
@@ -179,7 +181,7 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 	}
 
         // Check if MaintPage flag is enabled
-        if maintpage.Spec.MaintPage {
+        if maintpage.Spec.MaintPageConfig.MaintPageToggle {
                 svcfound.Spec.Selector["app"] = maintpage.Name
                 err := r.client.Update(context.TODO(), svcfound) 
                 if err != nil {
@@ -195,8 +197,8 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
                         return reconcile.Result{}, statusErr
                 }
         } else {
-                if svcfound.Spec.Selector["app"] != maintpage.Spec.AppName {
-                        svcfound.Spec.Selector["app"] = maintpage.Spec.AppName
+                if svcfound.Spec.Selector["app"] != maintpage.Spec.AppConfig.AppName {
+                        svcfound.Spec.Selector["app"] = maintpage.Spec.AppConfig.AppName
                         err := r.client.Update(context.TODO(), svcfound)
                         if err != nil {
                                 reqLogger.Error(err, "Failed to Update Service to App Name", svcfound.Name)
@@ -214,8 +216,8 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
         }
 
         // Revert if current image does not match with defined one
-        if depfound.Spec.Template.Spec.Containers[0].Image != maintpage.Spec.AppImage {
-                depfound.Spec.Template.Spec.Containers[0].Image = maintpage.Spec.AppImage
+        if depfound.Spec.Template.Spec.Containers[0].Image != maintpage.Spec.AppConfig.AppImage {
+                depfound.Spec.Template.Spec.Containers[0].Image = maintpage.Spec.AppConfig.AppImage
                 err := r.client.Update(context.TODO(), depfound)
                 if err != nil {
                         reqLogger.Error(err, "Failed to Update Deployment App Image", depfound.Name)
@@ -228,7 +230,8 @@ func (r *ReconcileMaintPage) Reconcile(request reconcile.Request) (reconcile.Res
 }
 
 // newPodForMaintPage returns a maintpage pod with the same name/namespace as the cr
-func newPodForCR(m *maintpagev1alpha1.MaintPage) *corev1.Pod {
+func newPodForMaintPage(m *maintpagev1alpha1.MaintPage) *corev1.Pod {
+        maintpageimage := m.Spec.MaintPageConfig.MaintPageImage
 	labels := map[string]string{
 		"app": m.Name,
 	}
@@ -242,7 +245,7 @@ func newPodForCR(m *maintpagev1alpha1.MaintPage) *corev1.Pod {
 			Containers: []corev1.Container{
 				{
 					Name:    "maintpage",
-					Image:   "quay.io/daein/maintpage:latest",
+					Image:   maintpageimage,
 				},
 			},
 		},
@@ -251,8 +254,8 @@ func newPodForCR(m *maintpagev1alpha1.MaintPage) *corev1.Pod {
 
 // deploymentForApp returns a App Deployment object
 func (r *ReconcileMaintPage) deploymentForApp(m *maintpagev1alpha1.MaintPage) *appsv1.Deployment {
-	appname  := m.Spec.AppName
-	appimage := m.Spec.AppImage
+	appname  := m.Spec.AppConfig.AppName
+	appimage := m.Spec.AppConfig.AppImage
         replicas := int32(1)
 
 	dep := &appsv1.Deployment{
@@ -284,7 +287,7 @@ func (r *ReconcileMaintPage) deploymentForApp(m *maintpagev1alpha1.MaintPage) *a
 }
 
 func (r *ReconcileMaintPage) serviceForApp(m *maintpagev1alpha1.MaintPage) *corev1.Service {
-	appname  := m.Spec.AppName
+	appname  := m.Spec.AppConfig.AppName
 
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{

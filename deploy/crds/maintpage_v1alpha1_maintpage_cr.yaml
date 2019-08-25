@@ -3,6 +3,9 @@ kind: MaintPage
 metadata:
   name: example
 spec:
-  appname: httpd
-  appimage: registry.redhat.io/rhscl/httpd-24-rhel7:latest
-  maintpage: false
+  maintpageconfig:
+    maintpagetoggle: false
+    maintpageimage: quay.io/daein/maintpage:latest
+  appconfig:  
+    appname: httpd
+    appimage: quay.io/daein/prodpage:latest
