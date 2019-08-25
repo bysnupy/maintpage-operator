@@ -86,12 +86,7 @@ Labels:       <none>
 Annotations:  <none>
 API Version:  maintpage.example.com/v1alpha1
 Kind:         MaintPage
-Metadata:
-  Creation Timestamp:  2019-08-25T03:08:12Z
-  Generation:          3
-  Resource Version:    205920
-  Self Link:           /apis/maintpage.example.com/v1alpha1/namespaces/maintpage-operator/maintpages/example
-  UID:                 92e2a42f-c6e5-11e9-80fd-080027ee6289
+...
 Spec:
   Appconfig:
     Appimage:  quay.io/daein/prodpage:latest
@@ -133,4 +128,26 @@ spec:
 ...
 12:37:49: Maintenance Page !
 12:37:50: Maintenance Page !
+~~~
+
+* Verify the status of MaintPage CR after changes, you can see `Status.Maintpublishstatus: Published`
+~~~
+# oc describe maintpage example
+Name:         example
+Namespace:    maintpage-operator
+Labels:       <none>
+Annotations:  <none>
+API Version:  maintpage.example.com/v1alpha1
+Kind:         MaintPage
+...
+Spec:
+  Appconfig:
+    Appimage:  quay.io/daein/prodpage:latest
+    Appname:   httpd
+  Maintpageconfig:
+    Maintpageimage:   quay.io/daein/maintpage:latest
+    Maintpagetoggle:  true
+Status:
+  Maintpublishstatus:  Published
+Events:                <none>
 ~~~
