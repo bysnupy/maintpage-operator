@@ -1,6 +1,6 @@
 # Maintpage Operator
 
-Maintpage Operator provide automation to control over showing maintenance page.
+Maintpage Operator automates the task to show a maintenance page.
 
 ## Description
 
